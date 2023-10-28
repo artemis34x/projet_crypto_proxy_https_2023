@@ -1,0 +1,22 @@
+cmake_minimum_required(VERSION 3.23)
+project(basic_proxy C)
+
+set(CMAKE_C_STANDARD 99)
+
+find_package(OpenSSL REQUIRED)
+
+add_executable(basic_proxy src/basic_proxy.c src/sni_callback.c src/sni_callback.h)
+add_executable(full_proxy src/full_proxy.c src/sni_callback.h src/sni_callback.c src/interactive.h src/interactive.c src/regex.c src/regex.h)
+add_executable(usurpation src/generate_custom_certificat.c)
+target_compile_options(basic_proxy PRIVATE -Wall -Wextra -fsanitize=address)
+target_compile_options(usurpation PRIVATE -Wall -Wextra -fsanitize=address)
+target_compile_options(full_proxy PRIVATE -Wall -Wextra -fsanitize=address)
+target_link_options(basic_proxy PRIVATE -fsanitize=address)
+target_link_options(usurpation PRIVATE -fsanitize=address)
+target_link_options(full_proxy PRIVATE -fsanitize=address)
+target_link_libraries(basic_proxy PRIVATE OpenSSL::SSL)
+target_link_libraries(usurpation PRIVATE OpenSSL::SSL)
+target_link_libraries(full_proxy PRIVATE OpenSSL::SSL)
+set_target_properties(basic_proxy PROPERTIES OUTPUT_NAME "basic_proxy.bin")
+set_target_properties(usurpation PROPERTIES OUTPUT_NAME "usurpation.bin")
+set_target_properties(full_proxy PROPERTIES OUTPUT_NAME "full_proxy.bin")

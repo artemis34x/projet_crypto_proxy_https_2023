@@ -1,0 +1,92 @@
+- les regex fonctionne pas très bien, la plupart du temps les serveurs compressent les données avant de les envoyer
+- basic_proxy.c est le proxy de secours, il est plus simple que full_proxy.c, les deux possèdent l'usurpation de certificat, mais main.c ne possède pas le filtrage par regex et l'interactivité
+
+les regex intercepte les requêtes et les réponses, le buffer utilisé pour passer d'un socket à l'autre est analysé par le regex, dans le cas ou le regex match, le transfer est stoppé
+
+l'usurpation de certificat n'est pas désactivable il faut obligatoirement set PROXY_CA_KEY=/home/antoine/CLionProjects/projet_crypto/ca_v2 il faut mettre le chemin absolu du fichier sans l'exention .key elle sera automatiquement ajouté pour obtenir aussi le .crt
+
+les regex c'est optionnel, il faut set PROXY_REGEX="le regex" pour l'activer, il faut mettre le regex entre guillemet
+
+l'interactivité est optionnel, il faut set PROXY_INTERACTIVE_PORT=8945 pour l'activer, c'est socket non chiffré qui est utilisé pour intersepeter les request https déchiffré puis l'outil connecté renvéra la réponse sur ce même socket
+ça fonctionne sur les requests et les réponse, il y a header qui est ajouté pour indiquer si c'est une request ou une réponse, le port et l'ip (celui du connect)
+
+Request: navigateur -- SSL_SOCKET -> proxy -- SOCKET -> outil_interactif -- SOCKET -> proxy -- SSL_SOCKET -> serveur
+Response serveur -- SSL_SOCKET -> proxy -- SOCKET -> outil_interactif -- SOCKET -> proxy -- SSL_SOCKET -> navigateur
+
+le format du header ajouté est le suivant :
+Version, type[REQUEST|RESPONSE], ip, port, [la request ou la réponse]
+V1,RESPONSE,%s,%d,...
+
+le header n'est ajouté que pour le sens proxy -> outil_interactif, il n'est pas ajouté pour le sens outil_interactif -> proxy
+
+j'ai créé un module proxy en python 3.11 pour intercepter(en utilisent le socket interactif du full_proxy.c), parser les headers, filtré les packets http, et transformer avec des methode le body/header, puis reformer, et renvoyer le packet, il y a un example d'utilisation à l'interieur du fichier proxy.py
+
+le dossiers tests/ il y a des parsers http, tests yara ... ce sont des scripts actuelement pas maintenu, ils ne fonctionne pas
+
+le generate_custom_certificat.c est un prototype complét de copy de certificat, il est totalement fonctionnel, il m'a servi a faire le callback SNI, c'est notre roue de secour si jamais les deux proxy ne fonctionne pas
+il permet de récupérer le certificat du serveur cible avec son url (il y a une résolution DNS), de généré une paire de clé RSA, de généré un certificat avec la nouvelle clé public, de copié toute les données du certificat(extensions x509, serial number, les dates ...) du serveur cible dans le certificat généré, de signé le certificat généré avec la clé privé de la CA, de print les détailles des certificat de la target et le nouveau, et enfin de sauvegarder les deux certificat ansi que la clé privé du nouveau dans des fichier
+NE PAS OUBLIER DE SET LA CA DANS LES DEFINE EN HAUT DU FICHIER generate_custom_certificat.c !!!
+
+pour la compilation il faut utiliser cmake
+cmake .
+make basic_proxy
+make full_proxy
+make usurpation
+
+ça générera 3 binaire, basic_proxy.bin, full_proxy.bin et usurpation.bin
+
+PROXY_CA_KEY=./ca_v2 ./basic_proxy.bin
+
+PROXY_CA_KEY=./ca_v2 PROXY_REGEX="en599" ./full_proxy.bin
+PROXY_CA_KEY=./ca_v2 PROXY_INTERACTIVE_PORT=8945 ./full_proxy.bin
+PROXY_CA_KEY=./ca_v2 PROXY_INTERACTIVE_PORT=8945 PROXY_REGEX="en599" ./full_proxy.bin
+
+python3.11 ./proxy.py
+
+./usurpation.bin
+
+les sites pour tester :
+    fonctionne :
+        https://www.exploit-db.com/google-hacking-database
+        https://www.offsec.com/
+    fonctionne pas trop:
+        https://www.y2mate.com/
+    fonctione rarement voir pas:
+        https://www.kali.org/tools/
+        https://developer.mozilla.org/fr/docs/Web/HTTP/Methods/TRACE
+
+ne pas oublié de lui dire de tester sur plusieurs site (c'est un peu aléatoire des fois)
+
+retour d'experience:
+
+le problème du read bloquant:
+    j'ai étai justement bloqué par ça plusieur jour, quand on read 1024 bytes sur un socket, il va attendre de remplir au moin un byte avant de renvoyer, donc si on essaye de lire quand il n'y a plus rien a lire, on reste bloqué
+    pour résoudre ce problème j'ai essayé de parser les headers http, de détecter le content-length, pour connaitre le nombre de byte du body, et s'il n'y est pas de d'arréter à la fin du header, mais ça fonctionne pas à tous les coups, car aujourd'hui la plupart des requests/response sont découpé en chunck pour avoir une sorte de steam de donnée qui est plus optimisé. sauf que quand ça arrive on ne peut pas connaitre la taille depuis le header, il faut la recalculé à chaque début de chunck.
+    faire un parser compatible avec le chuncked encoding est un peu compliqué(je regrète de ne pas l'avoir fait).
+    je suis parti sur une autre solution, en utilisent un "select" on peut mettre un timeout au "read", ça règle le problème mais ça rajoute une latence et ça peut même arété le transfert si le serveur est trop long à répondre, au final cette solution fonctionne à moitié
+    après avoir discuté avec vous mardi matin, il y a moyen de détecter la fin en regardent si le buffer est rempli complètement, et si se n'est pas le cas on ce trouve à la fin du packet, j'y avais pas pensé parce je croyé que ça pouvais arrivé avant la fin si le serveur était trop long à répondre, mais en fait non, cette solution n'est pas parfaite car elle peut faire bloqué le read si le dernié byte du packet rempli le dernier byte du buffer, mais ça arrive rarement.
+
+    la solution idéale serais de fusionner le parsing et le timeout.
+    il faut implémenter le chuncked encoding pour essayer de détecter la fin dans tous les cas (respecter les normes http) et de mettre un timeout de sécurité
+
+le problème de l'implémentation de la détection via le yara:
+    on a voulu le faire en dernier et on c'est retrouvé bloqué par l'importation des libraries dans cmakelists.txt,
+    on a pas voulu prendre trop de temps dessus car on avait déjà un proxy fonctionnel, et on a préféré se concentré sur les regex
+
+le problème lié à la détection de pattern (yara ou regex):
+    actuelment on a pas implémenté de buffer glisant, donc si le pattern est coupé en deux par le buffer, il ne sera pas détecté
+    la solution vraiment idéale serais de créer un buffer glisant de taille dinamique aloué après avoir calculé la taille du plus grand pattern arondi à la puissance de deux superieurs au chargement du proxy(aloué qu'une seule fois)
+
+
+
+Ne pas oublier de lui rappeler que il nous a dit de pas faire le proxy HTTP comme ça n'est pas en lien la crypto(il a dit que ça n'aller pas nous faire perdre de points)
+rajouter des commentaires dans le code si vous avez le temps ou de les changer
+bien me montrer le code avant de l'envoyer
+n'hésité pas à me demander si un truc n'est pas clair, j'ai forcément oublié des trucs
+
+
+prototypes:
+- parsing_header.c : parser de header http, on a supprimer erreur l'autre version avec le buffer glinsant
+- proxy_https_v1.c : c'est la premiere version du proxy sans aucun bonus, il est très fonctionnel à cause du read bloaquant, c'étais avant de vous voir pour le cours de jeudi
+- socket_to_socket.c : c'est la solution du select avec le timeout pour le read bloquant
+- yara.c : la partie yara qui aurait du être implémenté à full_proxy.c

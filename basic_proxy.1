@@ -1,0 +1,26 @@
+.\" Man page for basic_proxy
+.TH man 1 "15 June 2023" "version 1.0" "basic_proxy man page"
+.SH NAME
+basic_proxy - Description de ce que fait le programme
+.SH SYNOPSIS
+basic_proxy [options]
+.SH DESCRIPTION
+basic_proxy est une version simplifiée du proxy plein supportant uniquement les communications SSL et TLS.
+
+L'utilisation typique de basic_proxy pourrait ressembler à ceci :
+.PP
+.IP "PROXY_CA_KEY=/path/to/ca_key ./basic_proxy.bin"
+.br
+.SH OPTIONS
+Les options disponibles pour basic_proxy incluent :
+.IP "-h, --help"
+Affiche le message d'aide et quitte.
+.SH EXAMPLES
+.IP "PROXY_CA_KEY=/path/to/ca_key ./basic_proxy.bin"
+Démarrer le proxy en spécifiant la clé de l'autorité de certification.
+.SH SEE ALSO
+full_proxy(1)
+.SH BUGS
+Voir la section "Known Issues and Limitations" dans la documentation du projet.
+.SH AUTHOR
+Antoine Adam, Léo Vongchanh, Axel Was

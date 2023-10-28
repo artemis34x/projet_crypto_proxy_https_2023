@@ -1,0 +1,46 @@
+.TH FULL_PROXY "1" "June 15, 2023"
+.SH NAME
+full_proxy.bin \- un proxy HTTPS supportant SSL et TLS pour l'inspection des paquets.
+
+.SH SYNOPSIS
+.B full_proxy.bin
+[\fIOPTION\fR]...
+
+.SH DESCRIPTION
+.B full_proxy.bin
+est un proxy HTTPS conçu pour inspecter et analyser le trafic SSL/TLS. C'est un projet étudiant inspiré de mitmproxy. Il ne prend pas en charge HTTP.
+
+.SH OPTIONS
+.TP
+\fB-h\fR, \fB--help\fR
+Affiche l'aide et quitte.
+
+.SH ENVIRONMENT VARIABLES
+.TP
+.B PROXY_CA_KEY
+Spécifiez le chemin de la clé de l'autorité de certification.
+.TP
+.B PROXY_REGEX
+Active l'analyse de détection de logiciels malveillants basée sur des expressions régulières.
+.TP
+.B PROXY_INTERACTIVE_PORT
+Spécifie le port pour le mode interactif.
+
+.SH EXAMPLES
+.IP
+Lancer le proxy avec les paramètres par défaut:
+.br
+\fBPROXY_CA_KEY=/chemin/vers/ca_key ./full_proxy.bin\fR
+.IP
+Lancer le proxy avec l'analyse de détection de logiciels malveillants et le mode interactif:
+.br
+\fBPROXY_CA_KEY=/chemin/vers/ca_key PROXY_INTERACTIVE_PORT=8945 PROXY_REGEX="en599" ./full_proxy.bin\fR
+
+.SH SEE ALSO
+mitmproxy(1)
+
+.SH BUGS
+Voir la section "Known Issues and Limitations" dans la documentation du projet.
+
+.SH AUTHORS
+Antoine Adam, Léo Vongchanh, Axel Was.
